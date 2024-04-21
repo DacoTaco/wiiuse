@@ -50,4 +50,10 @@
 #endif
 #endif
 
+#ifdef GEKKO
+/* Convert to big endian */
+#define BIG_ENDIAN_LONG(i) (htonl(i))
+#define BIG_ENDIAN_SHORT(i) (htons(i))
+#endif
+
 #endif /* DEFINITIONS_OS_H_INCLUDED */

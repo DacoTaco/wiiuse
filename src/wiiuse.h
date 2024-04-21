@@ -547,12 +547,16 @@ typedef struct classic_ctrl_t
     int16_t btns;          /**< what buttons have just been pressed	*/
     int16_t btns_held;     /**< what buttons are being held down		*/
     int16_t btns_released; /**< what buttons were just released this	*/
+	
+    unsigned char rs_raw;
+    unsigned char ls_raw;
 
     float r_shoulder; /**< right shoulder button (range 0-1)		*/
     float l_shoulder; /**< left shoulder button (range 0-1)		*/
 
     struct joystick_t ljs; /**< left joystick calibration				*/
     struct joystick_t rjs; /**< right joystick calibration				*/
+    unsigned char type;    /**< original, pro, wiiu pro					*/
 } classic_ctrl_t;
 
 /**
