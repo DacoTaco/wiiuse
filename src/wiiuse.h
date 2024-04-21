@@ -631,6 +631,8 @@ typedef struct wii_board_t
     /** @} */
     uint8_t update_calib;
     uint8_t use_alternate_report;
+	float x;
+	float y;
 } wii_board_t;
 
 /**
