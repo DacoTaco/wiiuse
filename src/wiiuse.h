@@ -565,10 +565,15 @@ typedef struct classic_ctrl_t
 typedef struct guitar_hero_3_t
 {
     int16_t btns;          /**< what buttons have just been pressed	*/
+    int16_t btns_last;     /**< what buttons have just been pressed	*/
     int16_t btns_held;     /**< what buttons are being held down		*/
     int16_t btns_released; /**< what buttons were just released this	*/
 
-    float whammy_bar; /**< whammy bar (range 0-1)					*/
+    unsigned char wb_raw;
+    float whammy_bar;      /**< whammy bar (range 0-1)					*/
+
+    unsigned char tb_raw;
+    int touch_bar;         /**< touch bar							*/
 
     struct joystick_t js; /**< joystick calibration					*/
 } guitar_hero_3_t;

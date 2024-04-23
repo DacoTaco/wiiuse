@@ -102,8 +102,12 @@ int guitar_hero_3_handshake(struct wiimote_t *wm, struct guitar_hero_3_t *gh3, b
     gh3->js.max.y    = GUITAR_HERO_3_JS_MAX_Y;
     gh3->js.min.y    = GUITAR_HERO_3_JS_MIN_Y;
     gh3->js.center.y = GUITAR_HERO_3_JS_CENTER_Y;
+    gh3->wb_raw        = 0;
+    gh3->tb_raw        = 0;
+    gh3->touch_bar     = -1;
 
     /* handshake done */
+    wm->event = WIIUSE_GUITAR_HERO_3_CTRL_INSERTED;
     wm->exp.type = EXP_GUITAR_HERO_3;
 
 #ifdef WIIUSE_WIN32
@@ -131,15 +135,45 @@ void guitar_hero_3_disconnected(struct guitar_hero_3_t *gh3)
  */
 void guitar_hero_3_event(struct guitar_hero_3_t *gh3, byte *msg)
 {
-
+#ifndef GEKKO
     guitar_hero_3_pressed_buttons(gh3, from_big_endian_uint16_t(msg + 4));
+#else
+    guitar_hero_3_pressed_buttons(gh3, BIG_ENDIAN_SHORT(*(short*)(msg + 4)));
+#endif
 
+    gh3->tb_raw = (msg[2] & GUITAR_HERO_3_TOUCH_MASK);
+    gh3->wb_raw = (msg[3] & GUITAR_HERO_3_WHAMMY_MASK);
+#ifndef GEKKO   /* Done in wpad.c for GEKKO */
+    /* touch bar */
+    gh3->touch_bar = 0;
+    if (gh3->tb_raw > 0x1B)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_ORANGE;
+    else if (gh3->tb_raw > 0x18)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_ORANGE | GUITAR_HERO_3_TOUCH_BLUE;
+    else if (gh3->tb_raw > 0x15)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_BLUE;
+    else if (gh3->tb_raw > 0x13)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_BLUE | GUITAR_HERO_3_TOUCH_YELLOW;
+    else if (gh3->tb_raw > 0x10)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_YELLOW;
+    else if (gh3->tb_raw > 0x0D)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_AVAILABLE;
+    else if (gh3->tb_raw > 0x0B)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_YELLOW | GUITAR_HERO_3_TOUCH_RED;
+    else if (gh3->tb_raw > 0x08)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_RED;
+    else if (gh3->tb_raw > 0x05)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_RED | GUITAR_HERO_3_TOUCH_GREEN;
+    else if (gh3->tb_raw > 0x02)
+        gh3->touch_bar = GUITAR_HERO_3_TOUCH_GREEN;
+    
     /* whammy bar */
     gh3->whammy_bar = (msg[3] - GUITAR_HERO_3_WHAMMY_BAR_MIN)
                       / (float)(GUITAR_HERO_3_WHAMMY_BAR_MAX - GUITAR_HERO_3_WHAMMY_BAR_MIN);
 
+#endif
     /* joy stick */
-    calc_joystick_state(&gh3->js, msg[0], msg[1]);
+    calc_joystick_state(&gh3->js, (msg[0] & GUITAR_HERO_3_JS_MASK), (msg[1] & GUITAR_HERO_3_JS_MASK));
 }
 
 /**
@@ -153,6 +187,8 @@ static void guitar_hero_3_pressed_buttons(struct guitar_hero_3_t *gh3, short now
     /* message is inverted (0 is active, 1 is inactive) */
     now = ~now & GUITAR_HERO_3_BUTTON_ALL;
 
+    /* preserve old btns pressed */
+    gh3->btns_last = gh3->btns;
     /* pressed now & were pressed, then held */
     gh3->btns_held = (now & gh3->btns);
 
