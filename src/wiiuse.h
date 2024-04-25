@@ -90,6 +90,9 @@
 #elif defined(__APPLE__)
 #define WIIUSE_PLATFORM
 #define WIIUSE_MAC
+#elif defined(GEKKO)
+#define WIIUSE_GEKKO
+#define WIIUSE_PLATFORM
 #else
 #error "Platform not yet supported!"
 #endif
@@ -105,6 +108,9 @@
 #ifdef WIIUSE_BLUEZ
 /* nix */
 #include <bluetooth/bluetooth.h>
+#endif
+#ifdef WIIUSE_GEKKO
+#include <bte/bte.h>
 #endif
 
 #if defined(_MSC_VER) && _MSC_VER < 1700
@@ -141,7 +147,10 @@
 #define WIIMOTE_STATE_EXP_HANDSHAKE      0x10000 /* actual M+ connection exists but no handshake yet */
 #define WIIMOTE_STATE_EXP_EXTERN         0x20000    /* actual M+ connection exists but handshake failed */
 #define WIIMOTE_STATE_EXP_FAILED         0x40000    /* actual M+ connection exists but handshake failed */
+#define WIIMOTE_STATE_IR_INIT            0x20000
+#define WIIMOTE_STATE_SPEAKER_INIT       0x40000
 #define WIIMOTE_STATE_MPLUS_PRESENT      0x80000 /* Motion+ is connected */
+#define WIIMOTE_STATE_WIIU_PRO           0x80000
 
 #define WIIMOTE_ID(wm) (wm->unid)
 
@@ -220,11 +229,23 @@
 #define GUITAR_HERO_3_BUTTON_ALL        0xFEFF
 /** @} */
 
+/** @name Guitar Hero 3 touchbar codes */
+/** @{ */
+#define GUITAR_HERO_3_TOUCH_AVAILABLE	0x1000
+#define GUITAR_HERO_3_TOUCH_GREEN		0x1001
+#define GUITAR_HERO_3_TOUCH_RED			0x1002
+#define GUITAR_HERO_3_TOUCH_YELLOW		0x1004
+#define GUITAR_HERO_3_TOUCH_BLUE		0x1008
+#define GUITAR_HERO_3_TOUCH_ORANGE		0x1010
+/** @} */
+
 /** @name Wiimote option flags */
 /** @{ */
 #define WIIUSE_SMOOTHING     0x01
 #define WIIUSE_CONTINUOUS    0x02
 #define WIIUSE_ORIENT_THRESH 0x04
+#define WIIUSE_IR_THRESH     0x08
+#define WIIUSE_JS_THRESH     0x10
 #define WIIUSE_INIT_FLAGS (WIIUSE_SMOOTHING | WIIUSE_ORIENT_THRESH)
 
 #define WIIUSE_ORIENT_PRECISION 100.0f
@@ -288,28 +309,20 @@ typedef enum ir_position_t { WIIUSE_IR_ABOVE, WIIUSE_IR_BELOW } ir_position_t;
  *	@param lvl		[out] Pointer to an int that will hold the level setting.
  *	If no level is set 'lvl' will be set to 0.
  */
-#define WIIUSE_GET_IR_SENSITIVITY(wm, lvl)       \
-    do                                           \
-    {                                            \
-        if ((wm->state & 0x0200) == 0x0200)      \
-            *lvl = 1;                            \
-        else if ((wm->state & 0x0400) == 0x0400) \
-            *lvl = 2;                            \
-        else if ((wm->state & 0x0800) == 0x0800) \
-            *lvl = 3;                            \
-        else if ((wm->state & 0x1000) == 0x1000) \
-            *lvl = 4;                            \
-        else if ((wm->state & 0x2000) == 0x2000) \
-            *lvl = 5;                            \
-        else                                     \
-            *lvl = 0;                            \
-    } while (0)
+#define WIIUSE_GET_IR_SENSITIVITY(dev, lvl)								\
+			do {														\
+				if ((wm->state & 0x01000) == 0x01000) 		*lvl = 1;	\
+				else if ((wm->state & 0x02000) == 0x02000) 	*lvl = 2;	\
+				else if ((wm->state & 0x04000) == 0x04000) 	*lvl = 3;	\
+				else if ((wm->state & 0x08000) == 0x08000) 	*lvl = 4;	\
+				else if ((wm->state & 0x10000) == 0x10000) 	*lvl = 5;	\
+				else										*lvl = 0;	\
+			} while (0)
 
-#define WIIUSE_USING_ACC(wm)     ((wm->state & 0x020) == 0x020)
-#define WIIUSE_USING_EXP(wm)     ((wm->state & 0x040) == 0x040)
-#define WIIUSE_USING_IR(wm)      ((wm->state & 0x080) == 0x080)
-#define WIIUSE_USING_SPEAKER(wm) ((wm->state & 0x100) == 0x100)
-
+#define WIIUSE_USING_ACC(wm)			((wm->state & 0x00100) == 0x00100)
+#define WIIUSE_USING_EXP(wm)			((wm->state & 0x00200) == 0x00200)
+#define WIIUSE_USING_IR(wm)				((wm->state & 0x00400) == 0x00400)
+#define WIIUSE_USING_SPEAKER(wm)		((wm->state & 0x00800) == 0x00800)
 #define WIIUSE_IS_LED_SET(wm, num) ((wm->leds & WIIMOTE_LED_##num) == WIIMOTE_LED_##num)
 /** @} */
 
@@ -331,6 +344,10 @@ struct wiimote_t;
 struct vec3b_t;
 struct orient_t;
 struct gforce_t;
+
+#ifdef GEKKO
+	typedef void (*wii_event_cb)(struct wiimote_t*, s32 event);
+#endif
 
 /**
  *      @brief Callback that handles a read event.
@@ -460,6 +477,20 @@ typedef struct ir_dot_t
     byte size; /**< size of the IR dot (0-15)			*/
 } ir_dot_t;
 
+
+typedef struct fdot_t {
+	float x,y;
+} fdot_t;
+
+typedef struct sb_t {
+	fdot_t dots[2];
+	fdot_t acc_dots[2];
+	fdot_t rot_dots[2];
+	float angle;
+	float off_angle;
+	float score;
+} sb_t;
+
 /**
  *	@brief Screen aspect ratio.
  */
@@ -476,6 +507,17 @@ typedef struct ir_t
     enum aspect_t aspect; /**< aspect ratio of the screen			*/
 
     enum ir_position_t pos; /**< IR sensor bar position				*/
+    int raw_valid;          /**< is the raw position valid? 		*/
+    sb_t sensorbar;         /**< sensor bar, detected or guessed	*/
+    float angle;            /**< angle of the wiimote to the sensor bar*/
+
+    int smooth_valid;       /**< is the smoothed position valid? 	*/
+    float sx;               /**< smoothed X coordinate				*/
+    float sy;               /**< smoothed Y coordinate				*/
+    float error_cnt;        /**< error count, for smoothing algorithm*/
+    float glitch_cnt;       /**< glitch count, same					*/
+
+    int valid;              /**< is the bounded position valid? 	*/
 
     unsigned int vres[2]; /**< IR virtual screen resolution		*/
     int offset[2];        /**< IR XY correction offset			*/
@@ -510,6 +552,7 @@ typedef struct joystick_t
     struct vec2b_t max;    /**< maximum joystick values	*/
     struct vec2b_t min;    /**< minimum joystick values	*/
     struct vec2b_t center; /**< center joystick values		*/
+    struct vec2b_t pos;    /**< raw position values        */
 
     float ang; /**< angle the joystick is being held		*/
     float mag; /**< magnitude of the joystick (range 0-1)	*/
@@ -530,6 +573,7 @@ typedef struct nunchuk_t
     byte btns;          /**< what buttons have just been pressed	*/
     byte btns_held;     /**< what buttons are being held down		*/
     byte btns_released; /**< what buttons were just released this	*/
+    byte btns_last;     /**< what buttons have just been pressed	*/
 
     float orient_threshold; /**< threshold for orient to generate an event */
     int accel_threshold;    /**< threshold for accel to generate an event */
@@ -547,6 +591,7 @@ typedef struct classic_ctrl_t
     int16_t btns;          /**< what buttons have just been pressed	*/
     int16_t btns_held;     /**< what buttons are being held down		*/
     int16_t btns_released; /**< what buttons were just released this	*/
+    int16_t btns_last;     /**< what buttons have just been pressed	*/
 	
     unsigned char rs_raw;
     unsigned char ls_raw;
@@ -556,7 +601,7 @@ typedef struct classic_ctrl_t
 
     struct joystick_t ljs; /**< left joystick calibration				*/
     struct joystick_t rjs; /**< right joystick calibration				*/
-    unsigned char type;    /**< original, pro, wiiu pro					*/
+    byte type;             /**< original, pro, wiiu pro					*/
 } classic_ctrl_t;
 
 /**
@@ -569,11 +614,11 @@ typedef struct guitar_hero_3_t
     int16_t btns_held;     /**< what buttons are being held down		*/
     int16_t btns_released; /**< what buttons were just released this	*/
 
-    unsigned char wb_raw;
+    byte wb_raw;
     float whammy_bar;      /**< whammy bar (range 0-1)					*/
 
-    unsigned char tb_raw;
-    int touch_bar;         /**< touch bar							*/
+    byte tb_raw;
+    int touch_bar;         /**< touch bar								*/
 
     struct joystick_t js; /**< joystick calibration					*/
 } guitar_hero_3_t;
@@ -583,6 +628,8 @@ typedef struct guitar_hero_3_t
  */
 typedef struct motion_plus_t
 {
+	short rx, ry, rz;
+    byte status;
     byte ext; /**< is there a device on the pass-through port? */
 
     struct ang3s_t raw_gyro;        /**< current raw gyroscope data */
@@ -713,6 +760,7 @@ typedef enum WIIUSE_EVENT_TYPE {
     WIIUSE_UNEXPECTED_DISCONNECT,
     WIIUSE_READ_DATA,
     WIIUSE_WRITE_DATA,
+    WIIUSE_ACK,
     WIIUSE_NUNCHUK_INSERTED,
     WIIUSE_NUNCHUK_REMOVED,
     WIIUSE_CLASSIC_CTRL_INSERTED,
@@ -771,9 +819,21 @@ typedef struct wiimote_t
                           /** @} */
 #endif
 
+#ifdef WIIUSE_GEKKO
+    lwp_queue cmdq;
+    struct bd_addr bdaddr;     /**< bt address								*/
+    char bdaddr_str[18];       /**< readable bt address					*/
+    struct bte_pcb *sock;      /**< output socket							*/
+    wii_event_cb event_cb;     /**< event callback							*/
+#endif
+
     int state;           /**< various state flags					*/
     byte leds;           /**< currently lit leds						*/
+#ifdef WIIUSE_GEKKO
+    byte battery_level;  /**< battery level							*/
+#else
     float battery_level; /**< battery level							*/
+#endif
 
     int flags; /**< options flag							*/
 
@@ -794,6 +854,7 @@ typedef struct wiimote_t
     struct ir_t ir; /**< IR data								*/
 
     uint16_t btns;          /**< what buttons have just been pressed	*/
+    uint16_t btns_last;     /**< what buttons were down before			*/
     uint16_t btns_held;     /**< what buttons are being held down		*/
     uint16_t btns_released; /**< what buttons were just released this	*/
 
@@ -852,9 +913,15 @@ typedef enum data_req_s { REQ_READY = 0, REQ_SENT, REQ_DONE } data_req_s;
 struct data_req_t
 {
 
+#if defined(GEKKO)
+    lwp_node node;
+    ubyte data[48];     /**< buffer where read data is written                  */
+    unsigned int len;
+#else
     byte data[21]; /**< buffer where read data is written						*/
     byte len;
     unsigned int addr;
+#endif
     data_req_s state;   /**< set to 1 if not using callback and needs to be cleaned up	*/
     wiiuse_write_cb cb; /**< read data callback
                            */
@@ -870,6 +937,18 @@ typedef enum wiiuse_loglevel {
     LOGLEVEL_INFO    = 2,
     LOGLEVEL_DEBUG   = 3
 } wiiuse_loglevel;
+
+#if defined(GEKKO)
+ * @struct wiimote_listen_t
+ * @brief Wiimote listen structure.
+ */
+typedef struct wiimote_listen_t {
+    struct bd_addr bdaddr;
+    struct bte_pcb *sock;
+    struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr);
+    struct wiimote_t *wm;
+} wiimote_listen;
+#endif
 
 /*****************************************
  *
@@ -909,7 +988,13 @@ WIIUSE_EXPORT extern const char *wiiuse_version();
 #define WIIUSE_HAS_OUTPUT_REDIRECTION
 WIIUSE_EXPORT extern void wiiuse_set_output(enum wiiuse_loglevel loglevel, FILE *logtarget);
 
+#ifndef GEKKO
 WIIUSE_EXPORT extern struct wiimote_t **wiiuse_init(int wiimotes);
+#else
+WIIUSE_EXPORT extern int wiiuse_register(struct wiimote_listen_t *wml, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr));
+WIIUSE_EXPORT extern struct wiimote_t** wiiuse_init(int wiimotes, wii_event_cb event_cb);
+#endif
+
 WIIUSE_EXPORT extern void wiiuse_disconnected(struct wiimote_t *wm);
 WIIUSE_EXPORT extern void wiiuse_cleanup(struct wiimote_t **wm, int wiimotes);
 WIIUSE_EXPORT extern void wiiuse_rumble(struct wiimote_t *wm, int status);
@@ -920,6 +1005,7 @@ WIIUSE_EXPORT extern int wiiuse_read_data(struct wiimote_t *wm, byte *buffer, un
                                           uint16_t len);
 WIIUSE_EXPORT extern int wiiuse_write_data(struct wiimote_t *wm, unsigned int addr, const byte *data,
                                            byte len);
+WIIUSE_EXPORT extern int wiiuse_write_streamdata(struct wiimote_t *wm, const byte *data, byte len);
 WIIUSE_EXPORT extern void wiiuse_status(struct wiimote_t *wm);
 WIIUSE_EXPORT extern struct wiimote_t *wiiuse_get_by_id(struct wiimote_t **wm, int wiimotes, int unid);
 WIIUSE_EXPORT extern int wiiuse_set_flags(struct wiimote_t *wm, int enable, int disable);
@@ -966,7 +1052,11 @@ WIIUSE_EXPORT extern void wiiuse_set_nunchuk_accel_threshold(struct wiimote_t *w
 /* wiiboard.c */
 WIIUSE_EXPORT extern void wiiuse_set_wii_board_calib(struct wiimote_t *wm);
 
+/* motion_plus.c */
 WIIUSE_EXPORT extern void wiiuse_set_motion_plus(struct wiimote_t *wm, int status);
+
+/* speaker.c */
+WIIUSE_EXPORT extern void wiiuse_set_speaker(struct wiimote_t *wm, int status);
 
 #ifdef __cplusplus
 }

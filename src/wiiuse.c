@@ -38,12 +38,15 @@
 #include "io.h" /* for wiiuse_handshake, etc */
 #include "os.h" /* for wiiuse_os_* */
 #include "wiiuse_internal.h"
+#include "definitions.h"
 
 #include <stdio.h>  /* for printf, FILE */
 #include <stdlib.h> /* for malloc, free */
 #include <string.h> /* for memcpy, memset */
 
+#ifndef GEKKO
 static int g_banner                         = 0;
+#endif
 static const char g_wiiuse_version_string[] = WIIUSE_VERSION;
 
 /**
@@ -85,10 +88,18 @@ void wiiuse_cleanup(struct wiimote_t **wm, int wiimotes)
     {
         wiiuse_disconnect(wm[i]);
         wiiuse_cleanup_platform_fields(wm[i]);
-        free(wm[i]);
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(wm[i]);
+#else
+		free(wm[i]);
+#endif
     }
 
-    free(wm);
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(wm);
+#else
+		free(wm);
+#endif
 
     return;
 }
@@ -105,7 +116,11 @@ void wiiuse_cleanup(struct wiimote_t **wm, int wiimotes)
  *	The array returned by this function can be passed to various
  *	functions, including wiiuse_connect().
  */
+#ifndef GEKKO
 struct wiimote_t **wiiuse_init(int wiimotes)
+#else
+struct wiimote_t **wiiuse_init(int wiimotes, wii_event_cb event_cb)
+#endif
 {
     int i                 = 0;
     struct wiimote_t **wm = NULL;
@@ -121,6 +136,7 @@ struct wiimote_t **wiiuse_init(int wiimotes)
      *	2018: Replaced wiiuse.net with sourceforge project, since
      *	wiiuse.net is now abandoned and "parked".
      */
+#ifndef GEKKO
     if (!g_banner)
     {
         printf("wiiuse v" WIIUSE_VERSION " loaded.\n"
@@ -128,6 +144,8 @@ struct wiimote_t **wiiuse_init(int wiimotes)
                "  Original By: Michael Laforest <thepara[at]gmail{dot}com> <https://sourceforge.net/projects/wiiuse/>\n");
         g_banner = 1;
     }
+
+#endif
 
     logtarget[0] = stderr;
     logtarget[1] = stderr;
@@ -139,11 +157,21 @@ struct wiimote_t **wiiuse_init(int wiimotes)
         return NULL;
     }
 
-    wm = (struct wiimote_t **)malloc(sizeof(struct wiimote_t *) * wiimotes);
+#ifdef WIIUSE_GEKKO
+	wm = __lwp_wkspace_allocate(sizeof(struct wiimote_t*) * wiimotes);
+#else
+	wm = malloc(sizeof(struct wiimote_t*) * wiimotes);
+#endif
+	if(!wm) return NULL;
+	memset(wm, 0, sizeof(struct wiimote_t*) * wiimotes);
 
     for (i = 0; i < wiimotes; ++i)
     {
-        wm[i] = (struct wiimote_t *)malloc(sizeof(struct wiimote_t));
+#ifdef WIIUSE_GEKKO
+		wm[i] = __lwp_wkspace_allocate(sizeof(struct wiimote_t));
+#else
+		wm[i] = malloc(sizeof(struct wiimote_t));
+#endif
         memset(wm[i], 0, sizeof(struct wiimote_t));
 
         wm[i]->unid = i + 1;
@@ -301,11 +329,15 @@ void wiiuse_motion_sensing(struct wiimote_t *wm, int status)
 {
     if (status)
     {
+		if(WIIMOTE_IS_SET(wm,WIIMOTE_STATE_ACC)) return;
         WIIMOTE_ENABLE_STATE(wm, WIIMOTE_STATE_ACC);
     } else
     {
+		if(!WIIMOTE_IS_SET(wm,WIIMOTE_STATE_ACC)) return;
         WIIMOTE_DISABLE_STATE(wm, WIIMOTE_STATE_ACC);
     }
+	
+	if(!WIIMOTE_IS_SET(wm,WIIMOTE_STATE_HANDSHAKE_COMPLETE)) return;
 
     wiiuse_set_report_type(wm);
 }
@@ -343,7 +375,7 @@ int wiiuse_set_report_type(struct wiimote_t *wm)
         buf[0] |= 0x01;
     }
 
-    motion        = WIIMOTE_IS_SET(wm, WIIMOTE_STATE_ACC);
+    motion        = WIIMOTE_IS_SET(wm, WIIMOTE_STATE_ACC) || WIIMOTE_IS_SET(wm, WIIMOTE_STATE_IR);
     exp           = WIIMOTE_IS_SET(wm, WIIMOTE_STATE_EXP);
     ir            = WIIMOTE_IS_SET(wm, WIIMOTE_STATE_IR);
     balance_board = exp && (wm->exp.type == EXP_WII_BOARD);
@@ -423,7 +455,11 @@ int wiiuse_read_data_cb(struct wiimote_t *wm, wiiuse_read_cb read_cb, byte *buff
     }
 
     /* make this request structure */
-    req = (struct read_req_t *)malloc(sizeof(struct read_req_t));
+#ifdef WIIUSE_GEKKO
+	req = (struct read_req_t *)__lwp_wkspace_allocate(sizeof(struct read_req_t));
+#else
+	req = (struct read_req_t *)malloc(sizeof(struct read_req_t));
+#endif
     if (req == NULL)
     {
         return 0;
@@ -579,6 +615,27 @@ struct wiimote_t *wiiuse_get_by_id(struct wiimote_t **wm, int wiimotes, int unid
     return NULL;
 }
 
+int wiiuse_write_streamdata(struct wiimote_t *wm, const byte *data, byte len)
+{
+	if (!wm || !WIIMOTE_IS_CONNECTED(wm))
+    {
+        WIIUSE_ERROR("Attempt to write, but no wiimote available or not connected!");
+        return 0;
+    }
+    if (!data || !len || len > 20)
+    {
+        WIIUSE_ERROR("Attempt to write, but no data, length == 0 or length > 20");
+        return 0;
+    }
+
+	byte buf[21] = {0};
+	buf[0] = (len<<3);
+	memcpy(buf+1, data, len);
+	
+	wiiuse_send(wm, WM_CMD_STREAM_DATA, buf, 22);
+	return 1;
+}
+
 /**
  *	@brief	Write data to the wiimote.
  *
@@ -660,7 +717,11 @@ int wiiuse_write_data_cb(struct wiimote_t *wm, unsigned int addr, byte *data, by
         return 0;
     }
 
-    req      = (struct data_req_t *)malloc(sizeof(struct data_req_t));
+#ifdef WIIUSE_GEKKO
+	req      = (struct data_req_t *)__lwp_wkspace_allocate(sizeof(struct data_req_t));
+#else
+	req      = (struct data_req_t *)malloc(sizeof(struct data_req_t));
+#endif
     req->cb  = write_cb;
     req->len = len;
     memcpy(req->data, data, req->len);

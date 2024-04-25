@@ -60,6 +60,9 @@
 #elif defined(__APPLE__)
 #define WIIUSE_PLATFORM
 #define WIIUSE_MAC
+#elif defined(GEKKO)
+#define WIIUSE_GEKKO
+#define WIIUSE_PLATFORM
 #else
 #error "Platform not yet supported!"
 #endif
@@ -76,6 +79,9 @@
 /* mac */
 #include <CoreFoundation/CoreFoundation.h>  /*CFRunLoops and CFNumberRef in Bluetooth classes*/
 #include <IOBluetooth/IOBluetoothUserLib.h> /*IOBluetoothDeviceRef and IOBluetoothL2CAPChannelRef*/
+#endif
+#ifdef WIIUSE_GEKKO
+#include <lwp_wkspace.inl>
 #endif
 
 #include "definitions.h"
@@ -106,19 +112,23 @@
 #define WM_SET_DATA           0xA0
 
 /* commands */
+#define WM_CMD_RUMBLE         0x10
 #define WM_CMD_LED            0x11
 #define WM_CMD_REPORT_TYPE    0x12
-#define WM_CMD_RUMBLE         0x13
 #define WM_CMD_IR             0x13
+#define WM_CMD_SPEAKER_ENABLE 0x14
 #define WM_CMD_CTRL_STATUS    0x15
 #define WM_CMD_WRITE_DATA     0x16
 #define WM_CMD_READ_DATA      0x17
+#define WM_CMD_STREAM_DATA    0x18
+#define WM_CMD_SPEAKER_MUTE   0x19
 #define WM_CMD_IR_2           0x1A
 
 /* input report ids */
 #define WM_RPT_CTRL_STATUS    0x20
 #define WM_RPT_READ           0x21
 #define WM_RPT_WRITE          0x22
+#define WM_RPT_ACK            0x22
 #define WM_RPT_BTN            0x30
 #define WM_RPT_BTN_ACC        0x31
 #define WM_RPT_BTN_EXP_8      0x32
@@ -177,6 +187,10 @@
 /* offsets in wiimote memory */
 #define WM_MEM_OFFSET_CALIBRATION            0x16
 #define WM_EXP_MEM_BASE                      0x04A40000
+#define WM_REG_SPEAKER_REG1                  0x04A20001
+#define WM_REG_SPEAKER_BLOCK                 0x04A20001
+#define WM_REG_SPEAKER_REG2                  0x04A20008
+#define WM_REG_SPEAKER_REG3                  0x04A20009
 #define WM_EXP_ID                            0x04A400FA
 #define WM_EXP_MEM_ENABLE                    0x04A40040
 #define WM_EXP_MEM_ENABLE1                   0x04A400F0
@@ -195,6 +209,7 @@
 
 #define WM_IR_TYPE_BASIC                     0x01
 #define WM_IR_TYPE_EXTENDED                  0x03
+#define WM_IR_TYPE_FULL                      0x05
 
 /* controller status flags for the first message byte */
 /* bit 1 is unknown */
@@ -233,6 +248,16 @@
 #define EXP_ID_CODE_NLA_MOTION_PLUS_NUNCHUK      0xA6200505 /** No longer active Motion Plus ID in Nunchuck passthrough mode */
 #define EXP_ID_CODE_NLA_MOTION_PLUS_CLASSIC      0xA6200705 /** No longer active Motion Plus ID in Classic control. passthrough */
 
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_NYKOWING  0x90908F00
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_NYKOWING2 0x9E9F9c00
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_NYKOWING3 0x908F8F00
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_GENERIC   0xA5A2A300
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_GENERIC2  0x98999900
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_GENERIC3  0xA0A1A000
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_GENERIC4  0x8D8D8E00
+#define EXP_ID_CODE_CLASSIC_CONTROLLER_GENERIC5  0x93949400
+#define EXP_ID_CODE_CLASSIC_WIIU_PRO             0xA4200120
+
 #define EXP_HANDSHAKE_LEN 224
 
 /********************
@@ -269,7 +294,7 @@
  *		St = St_last + (alpha * (tilt - St_last))
  *	alpha is between 0 and 1
  */
-#define WIIUSE_DEFAULT_SMOOTH_ALPHA 0.07f
+#define WIIUSE_DEFAULT_SMOOTH_ALPHA 0.3f
 
 #define SMOOTH_ROLL 0x01
 #define SMOOTH_PITCH 0x02
