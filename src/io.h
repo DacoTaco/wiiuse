@@ -43,6 +43,9 @@ extern "C" {
 /** @defgroup internal_io Internal: Device I/O */
 /** @{ */
 void wiiuse_handshake(struct wiimote_t *wm, byte *data, uint16_t len);
+void wiiuse_handshake_expansion_start(struct wiimote_t *wm);
+void wiiuse_handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len);
+void wiiuse_disable_expansion(struct wiimote_t *wm);
 
 int wiiuse_wait_report(struct wiimote_t *wm, int report, byte *buffer, int bufferLength,
                        unsigned long timeout_ms);

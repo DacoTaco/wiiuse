@@ -42,7 +42,11 @@ extern "C" {
 
 /** @defgroup internal_io Internal: Platform-specific Device I/O */
 /** @{ */
+#ifndef GEKKO
 void wiiuse_init_platform_fields(struct wiimote_t *wm);
+#else
+void wiiuse_init_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb);
+#endif
 void wiiuse_cleanup_platform_fields(struct wiimote_t *wm);
 
 int wiiuse_os_find(struct wiimote_t **wm, int max_wiimotes, int timeout);
