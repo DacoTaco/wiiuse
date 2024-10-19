@@ -21,43 +21,79 @@
 #include "io.h"
 #include "os.h"
 
-void wiiuse_init_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
+static s32 __bte_receive(void *arg, void *buffer, u16 len)
 {
-    wm[i]->sock = NULL;
-	wm[i]->bdaddr = *BD_ADDR_ANY;
-	wm[i]->event_cb = event_cb;
-}
-void wiiuse_cleanup_platform_fields(struct wiimote_t *wm)
-{
-	wiiuse_init_platform_fields(wm, NULL);
+	struct wiimote_t *wm = (struct wiimote_t*)arg;
+	return wiiuse_os_read(wm, buffer, len);
 }
 
-int wiiuse_os_find(struct wiimote_t **wm, int max_wiimotes, int timeout)
+static s32 __bte_disconnected(void *arg,struct bte_pcb *pcb,u8 err)
 {
-	return ERR_OK;
+	struct wiimote_t *wm = (struct wiimote_t*)arg;
+	wiiuse_os_disconnect(wm);
+	return 0;
+}
+
+static s32 __bte_connected(void *arg, struct bte_pcb *pcb, u8 err)
+{
+	struct wiimote_t *wm = (struct wiimote_t*)arg;
+	return wiiuse_os_connect_single(wm);
+}
+
+static void __set_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
+{
+	wm->sock = NULL;
+	wm->bdaddr = *BD_ADDR_ANY;
+	wm->event_cb = event_cb;
+}
+void wiiuse_init_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
+{
+	__set_platform_fields(wm, cb);
+	bte_arg(wml->sock, wm);
+	bte_received(wml->sock, __bte_receive);
+	bte_disconnected(wml->sock, __bte_disconnected);
+	bte_registerdeviceasync(wml->sock, bdaddr, __wiiuse_connected);
+}
+void wiiuse_cleanup_platform_fields(struct wiimote_t *wm) { __set_platform_fields(wm, NULL); }
+int wiiuse_os_find(struct wiimote_t **wm, int max_wiimotes, int timeout){ return 0; }
+
+int wiiuse_os_connect_single(struct wiimote_t *wm)
+{
+	if(!wm)
+		return 0;
+	
+	//printf("__wiiuse_connected()\n");
+	WIIMOTE_ENABLE_STATE(wm,(WIIMOTE_STATE_CONNECTED|WIIMOTE_STATE_HANDSHAKE));
+
+	wm->handshake_state = 0;
+	wiiuse_handshake(wm, NULL, 0);
+	
+	return 1;
 }
 
 int wiiuse_os_connect(struct wiimote_t **wm, int wiimotes)
 {
-	if(!wm) {
+	if(!wm)
+	{
 		return ERR_OK;
 	}
 	
-	for(int i = 0; i < wiimotes; i++)
-	{
-		if (!wm[i])
+	int connected = 0;
+    for (int i = 0; i < wiimotes; ++i)
+    {
+		/* if the device address is not set, skip it */
+        if (!WIIMOTE_IS_SET(wm[i], WIIMOTE_STATE_DEV_FOUND))
         {
             continue;
         }
-        
-		//printf("__wiiuse_connected()\n");
-		WIIMOTE_ENABLE_STATE(wm[i],(WIIMOTE_STATE_CONNECTED|WIIMOTE_STATE_HANDSHAKE));
 
-		wm->handshake_state = 0;
-		wiiuse_handshake(wm[i],NULL,0);
-	}
+        if (wiiuse_os_connect_single(wm[i]))
+        {
+            ++connected;
+        }
+    }
 
-	return ERR_OK;
+    return connected;
 }
 
 void wiiuse_os_disconnect(struct wiimote_t *wm)
@@ -75,17 +111,15 @@ void wiiuse_os_disconnect(struct wiimote_t *wm)
 	
 	if(wm->event_cb) wm->event_cb(wm, WIIUSE_DISCONNECT);
 
-	return ERR_OK;
+	return;
 }
 
-int wiiuse_os_poll(struct wiimote_t **wm, int wiimotes){ return ERR_OK }
+int wiiuse_os_poll(struct wiimote_t **wm, int wiimotes) { return wm != NULL; }
 
 int wiiuse_os_read(struct wiimote_t *wm, byte *buf, int len)
 {
     if (!wm || !buf || len==0 || !WIIMOTE_IS_CONNECTED(wm))
-    {
-        return ERR_OK;
-    }
+        return 0;
 
 	//printf("__wiiuse_receive[%02x]\n",*(char*)buf);
 	wm->event = WIIUSE_NONE;
@@ -98,21 +132,24 @@ int wiiuse_os_read(struct wiimote_t *wm, byte *buf, int len)
 		if(wm->event_cb) wm->event_cb(wm, wm->event);
 	}
 
-	return ERR_OK;
+	return len;
 }
 int wiiuse_os_write(struct wiimote_t *wm, byte report_type, byte *buf, int len)
 {
+	int rc;
     byte write_buffer[MAX_PAYLOAD];
 
     if (!wm || !wm->sock || !WIIMOTE_IS_CONNECTED(wm))
-    {
-        return ERR_CONN;
-    }
+        return 0;
 
     write_buffer[0] = report_type;
 	memcpy(write_buffer+1, buf, len);
+	
+	rc = bte_senddata(wm->sock,buf,len);
+	if (rc < 0)
+        wiiuse_disconnected(wm);
 
-	return bte_senddata(wm->sock,buf,len);
+	return rc;
 }
 
 unsigned long wiiuse_os_ticks()

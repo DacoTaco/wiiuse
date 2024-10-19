@@ -36,6 +36,9 @@
 
 #ifndef EVENTS_H_INCLUDED
 #define EVENTS_H_INCLUDED
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "wiiuse.h"
 
@@ -51,5 +54,8 @@ void idle_cycle(struct wiimote_t *wm);
 
 void clear_dirty_reads(struct wiimote_t *wm);
 /** @} */
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* EVENTS_H_INCLUDED */

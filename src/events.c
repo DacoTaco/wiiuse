@@ -153,7 +153,11 @@ void clear_dirty_reads(struct wiimote_t *wm)
         WIIUSE_DEBUG("Cleared old read request for address: %x", req->addr);
 
         wm->read_req = req->next;
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(req);
+#else
         free(req);
+#endif
         req = wm->read_req;
     }
 }
@@ -386,7 +390,11 @@ static void event_data_read(struct wiimote_t *wm, byte *msg)
 
         /* delete this request */
         wm->read_req = req->next;
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(req);
+#else
         free(req);
+#endif
 
         /* if another request exists send it to the wiimote */
         if (wm->read_req)
@@ -440,7 +448,11 @@ static void event_data_read(struct wiimote_t *wm, byte *msg)
 
             /* delete this request */
             wm->read_req = req->next;
-            free(req);
+#ifdef WIIUSE_GEKKO
+			__lwp_wkspace_free(req);
+#else
+			free(req);
+#endif
         } else
         {
             /*
@@ -480,7 +492,11 @@ static void event_data_write(struct wiimote_t *wm, byte *msg)
         WIIUSE_WARNING("Transmission is not necessary");
         /* delete this request */
         wm->data_req = req->next;
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(req);
+#else
         free(req);
+#endif
         return;
     }
 
@@ -492,7 +508,11 @@ static void event_data_write(struct wiimote_t *wm, byte *msg)
         req->cb(wm, NULL, 0);
         /* delete this request */
         wm->data_req = req->next;
+#ifdef WIIUSE_GEKKO
+        __lwp_wkspace_free(req);
+#else
         free(req);
+#endif
     } else
     {
         /*
@@ -644,7 +664,11 @@ static void event_status(struct wiimote_t *wm, byte *msg)
     wm->data_req = req->next;
     req->state   = REQ_DONE;
     /* if(req->cb!=NULL) req->cb(wm,msg,6); */
-    free(req);
+#ifdef WIIUSE_GEKKO
+	__lwp_wkspace_free(req);
+#else
+	free(req);
+#endif
 }
 
 /**
@@ -742,7 +766,11 @@ void handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
         if (WIIMOTE_IS_SET(wm, WIIMOTE_STATE_EXP))
             disable_expansion(wm);
 
+#ifdef WIIUSE_GEKKO
+        handshake_buf = (byte *)__lwp_wkspace_allocate(EXP_HANDSHAKE_LEN * sizeof(byte));
+#else
         handshake_buf = (byte *)malloc(EXP_HANDSHAKE_LEN * sizeof(byte));
+#endif
         /* tell the wiimote to send expansion data */
         WIIMOTE_ENABLE_STATE(wm, WIIMOTE_STATE_EXP);
         wiiuse_read_data_sync(wm, 0, WM_EXP_MEM_CALIBR, EXP_HANDSHAKE_LEN, handshake_buf);
@@ -814,8 +842,11 @@ void handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
         WIIUSE_WARNING("Unknown expansion type. Code: 0x%x", id);
         break;
     }
-
-    free(handshake_buf);
+#ifdef WIIUSE_GEKKO
+	__lwp_wkspace_free(handshake_buf);
+#else
+	free(handshake_buf);
+#endif
 
     if (gotIt)
     {
