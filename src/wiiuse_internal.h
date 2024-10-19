@@ -81,7 +81,8 @@
 #include <IOBluetooth/IOBluetoothUserLib.h> /*IOBluetoothDeviceRef and IOBluetoothL2CAPChannelRef*/
 #endif
 #ifdef WIIUSE_GEKKO
-#include <lwp_wkspace.inl>
+#include <string.h>
+#include <network.h>
 #endif
 
 #include "definitions.h"

@@ -89,14 +89,14 @@ void wiiuse_cleanup(struct wiimote_t **wm, int wiimotes)
         wiiuse_disconnect(wm[i]);
         wiiuse_cleanup_platform_fields(wm[i]);
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(wm[i]);
+        free(wm[i]);
 #else
 		free(wm[i]);
 #endif
     }
 
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(wm);
+        free(wm);
 #else
 		free(wm);
 #endif
@@ -158,7 +158,7 @@ struct wiimote_t **wiiuse_init(int wiimotes, wii_event_cb event_cb)
     }
 
 #ifdef WIIUSE_GEKKO
-	wm = __lwp_wkspace_allocate(sizeof(struct wiimote_t*) * wiimotes);
+	wm = malloc(sizeof(struct wiimote_t*) * wiimotes);
 #else
 	wm = malloc(sizeof(struct wiimote_t*) * wiimotes);
 #endif
@@ -168,14 +168,14 @@ struct wiimote_t **wiiuse_init(int wiimotes, wii_event_cb event_cb)
     for (i = 0; i < wiimotes; ++i)
     {
 #ifdef WIIUSE_GEKKO
-		wm[i] = __lwp_wkspace_allocate(sizeof(struct wiimote_t));
+		wm[i] = malloc(sizeof(struct wiimote_t));
 #else
 		wm[i] = malloc(sizeof(struct wiimote_t));
 #endif
         memset(wm[i], 0, sizeof(struct wiimote_t));
 
         wm[i]->unid = i + 1;
-        wiiuse_init_platform_fields(wm[i]);
+        wiiuse_init_platform_fields(wm[i], event_cb);
 
         wm[i]->state = WIIMOTE_INIT_STATES;
         wm[i]->flags = WIIUSE_INIT_FLAGS;
@@ -456,7 +456,7 @@ int wiiuse_read_data_cb(struct wiimote_t *wm, wiiuse_read_cb read_cb, byte *buff
 
     /* make this request structure */
 #ifdef WIIUSE_GEKKO
-	req = (struct read_req_t *)__lwp_wkspace_allocate(sizeof(struct read_req_t));
+	req = (struct read_req_t *)malloc(sizeof(struct read_req_t));
 #else
 	req = (struct read_req_t *)malloc(sizeof(struct read_req_t));
 #endif
@@ -718,7 +718,7 @@ int wiiuse_write_data_cb(struct wiimote_t *wm, unsigned int addr, byte *data, by
     }
 
 #ifdef WIIUSE_GEKKO
-	req      = (struct data_req_t *)__lwp_wkspace_allocate(sizeof(struct data_req_t));
+	req      = (struct data_req_t *)malloc(sizeof(struct data_req_t));
 #else
 	req      = (struct data_req_t *)malloc(sizeof(struct data_req_t));
 #endif

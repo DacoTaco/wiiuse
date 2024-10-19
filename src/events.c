@@ -154,7 +154,7 @@ void clear_dirty_reads(struct wiimote_t *wm)
 
         wm->read_req = req->next;
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(req);
+        free(req);
 #else
         free(req);
 #endif
@@ -391,7 +391,7 @@ static void event_data_read(struct wiimote_t *wm, byte *msg)
         /* delete this request */
         wm->read_req = req->next;
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(req);
+        free(req);
 #else
         free(req);
 #endif
@@ -449,7 +449,7 @@ static void event_data_read(struct wiimote_t *wm, byte *msg)
             /* delete this request */
             wm->read_req = req->next;
 #ifdef WIIUSE_GEKKO
-			__lwp_wkspace_free(req);
+			free(req);
 #else
 			free(req);
 #endif
@@ -493,7 +493,7 @@ static void event_data_write(struct wiimote_t *wm, byte *msg)
         /* delete this request */
         wm->data_req = req->next;
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(req);
+        free(req);
 #else
         free(req);
 #endif
@@ -509,7 +509,7 @@ static void event_data_write(struct wiimote_t *wm, byte *msg)
         /* delete this request */
         wm->data_req = req->next;
 #ifdef WIIUSE_GEKKO
-        __lwp_wkspace_free(req);
+        free(req);
 #else
         free(req);
 #endif
@@ -665,7 +665,7 @@ static void event_status(struct wiimote_t *wm, byte *msg)
     req->state   = REQ_DONE;
     /* if(req->cb!=NULL) req->cb(wm,msg,6); */
 #ifdef WIIUSE_GEKKO
-	__lwp_wkspace_free(req);
+	free(req);
 #else
 	free(req);
 #endif
@@ -767,7 +767,7 @@ void handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
             disable_expansion(wm);
 
 #ifdef WIIUSE_GEKKO
-        handshake_buf = (byte *)__lwp_wkspace_allocate(EXP_HANDSHAKE_LEN * sizeof(byte));
+        handshake_buf = (byte *)malloc(EXP_HANDSHAKE_LEN * sizeof(byte));
 #else
         handshake_buf = (byte *)malloc(EXP_HANDSHAKE_LEN * sizeof(byte));
 #endif
@@ -843,7 +843,7 @@ void handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
         break;
     }
 #ifdef WIIUSE_GEKKO
-	__lwp_wkspace_free(handshake_buf);
+	free(handshake_buf);
 #else
 	free(handshake_buf);
 #endif

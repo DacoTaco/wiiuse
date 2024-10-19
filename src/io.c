@@ -42,7 +42,6 @@
 #include <stdlib.h> /* for free, malloc */
 #include <string.h>
 #ifdef WIIUSE_GEKKO
-#include <lwp_wkspace.inl>
 #endif
 
 /**
@@ -371,7 +370,7 @@ void wiiuse_handshake(struct wiimote_t *wm, byte *data, uint16_t len)
     {
         wm->handshake_state++;
 #ifdef WIIUSE_GEKKO
-        buf = __lwp_wkspace_allocate(sizeof(ubyte)*8);
+        buf = malloc(sizeof(ubyte)*8);
 #else
 		buf = malloc(sizeof(ubyte)*8);
 #endif
@@ -410,7 +409,7 @@ void wiiuse_handshake(struct wiimote_t *wm, byte *data, uint16_t len)
     accel->cal_g.y = (((data[5]<<2)|((data[7]>>2)&3)) - accel->cal_zero.y);
     accel->cal_g.z = (((data[6]<<2)|(data[7]&3)) - accel->cal_zero.z);
 #ifdef WIIUSE_GEKKO
-	__lwp_wkspace_free(data);
+	free(data);
 #else
 	free(data);
 #endif
@@ -453,7 +452,7 @@ void wiiuse_handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
 		case 2:
 			wm->expansion_state = 3;
 #ifdef WIIUSE_GEKKO
-			buf = __lwp_wkspace_allocate(sizeof(ubyte)*EXP_HANDSHAKE_LEN);
+			buf = malloc(sizeof(ubyte)*EXP_HANDSHAKE_LEN);
 #else
 			buf = malloc(sizeof(ubyte)*EXP_HANDSHAKE_LEN);
 #endif
@@ -489,12 +488,12 @@ void wiiuse_handshake_expansion(struct wiimote_t *wm, byte *data, uint16_t len)
 					if(!classic_ctrl_handshake(wm,&wm->exp.classic,data,len)) return;
 					/*WIIMOTE_DISABLE_STATE(wm,WIIMOTE_STATE_EXP_HANDSHAKE);
 					WIIMOTE_ENABLE_STATE(wm,WIIMOTE_STATE_EXP_FAILED);
-					__lwp_wkspace_free(data);
+					free(data);
 					wiiuse_status(wm,NULL);
 					return;*/
 			}
 #ifdef WIIUSE_GEKKO
-			__lwp_wkspace_free(data);
+			free(data);
 #else
 			free(data);
 #endif

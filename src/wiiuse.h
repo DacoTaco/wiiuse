@@ -820,11 +820,10 @@ typedef struct wiimote_t
 #endif
 
 #ifdef WIIUSE_GEKKO
-    lwp_queue cmdq;
     struct bd_addr bdaddr;     /**< bt address								*/
-    char bdaddr_str[18];       /**< readable bt address					*/
     struct bte_pcb *sock;      /**< output socket							*/
     wii_event_cb event_cb;     /**< event callback							*/
+	unsigned char event_buf[32];		/**< event buffer							*/
 #endif
 
     int state;           /**< various state flags					*/
@@ -913,10 +912,11 @@ typedef enum data_req_s { REQ_READY = 0, REQ_SENT, REQ_DONE } data_req_s;
 struct data_req_t
 {
 
-#if defined(GEKKO)
+#if defined(WIIUSE_GEKKO)
     lwp_node node;
-    ubyte data[48];     /**< buffer where read data is written                  */
+    unsigned char data[48];     /**< buffer where read data is written                  */
     unsigned int len;
+	unsigned int addr;
 #else
     byte data[21]; /**< buffer where read data is written						*/
     byte len;
@@ -937,18 +937,6 @@ typedef enum wiiuse_loglevel {
     LOGLEVEL_INFO    = 2,
     LOGLEVEL_DEBUG   = 3
 } wiiuse_loglevel;
-
-#if defined(GEKKO)
- * @struct wiimote_listen_t
- * @brief Wiimote listen structure.
- */
-typedef struct wiimote_listen_t {
-    struct bd_addr bdaddr;
-    struct bte_pcb *sock;
-    struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr);
-    struct wiimote_t *wm;
-} wiimote_listen;
-#endif
 
 /*****************************************
  *
@@ -991,7 +979,6 @@ WIIUSE_EXPORT extern void wiiuse_set_output(enum wiiuse_loglevel loglevel, FILE 
 #ifndef GEKKO
 WIIUSE_EXPORT extern struct wiimote_t **wiiuse_init(int wiimotes);
 #else
-WIIUSE_EXPORT extern int wiiuse_register(struct wiimote_listen_t *wml, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr));
 WIIUSE_EXPORT extern struct wiimote_t** wiiuse_init(int wiimotes, wii_event_cb event_cb);
 #endif
 
