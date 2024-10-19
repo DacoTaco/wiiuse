@@ -36,7 +36,7 @@ if(NOT BUILD_SHARED_LIBS)
 	add_definitions(-DWIIUSE_STATIC)
 endif()
 
-if(NOT WIN32 AND NOT APPLE)
+if(NOT WIN32 AND NOT APPLE AND NOT NINTENDO_WII)
 	set(LINUX YES)
 	find_package(Bluez REQUIRED)
 	include_directories(${BLUEZ_INCLUDE_DIRS})

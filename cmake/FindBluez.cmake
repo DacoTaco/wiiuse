@@ -23,7 +23,7 @@
 # http://www.boost.org/LICENSE_1_0.txt)
 # SPDX-License-Identifier: BSL-1.0
 
-if(WIN32 OR APPLE OR NOT UNIX)
+if(WIN32 OR APPLE OR NINTENDO_WII OR NOT UNIX)
 	if(NOT Bluez_FIND_QUIETLY)
 		message(STATUS "Platform not supported by Bluez - skipping search")
 	endif()

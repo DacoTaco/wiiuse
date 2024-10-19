@@ -46,6 +46,8 @@ elseif(APPLE)
 	# make sure we use the gcc for Objective-C files as well so that the
 	# sysroot and deployment target arguments are correctly passed to the compiler
 	set_source_files_properties(${MAC_OBJC_SOURCES} PROPERTIES LANGUAGE C)
+elseif(NINTENDO_WII)
+	list(APPEND SOURCES os_wii.c)
 else()
 	list(APPEND SOURCES os_nix.c)
 endif()
