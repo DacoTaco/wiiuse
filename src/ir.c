@@ -36,7 +36,6 @@
 #include <math.h> /* for atanf, cos, sin, sqrt */
 
 static int get_ir_sens(struct wiimote_t *wm, const byte **block1, const byte **block2);
-static void interpret_ir_data(struct wiimote_t *wm);
 static void fix_rotated_ir_dots(struct ir_dot_t *dot, float ang);
 static void get_ir_dot_avg(struct ir_dot_t *dot, int *x, int *y);
 static void reorder_ir_dots(struct ir_dot_t *dot);
@@ -455,7 +454,7 @@ void calculate_extended_ir(struct wiimote_t *wm, byte *data)
  *
  *	@param wm		Pointer to a wiimote_t structure.
  */
-static void interpret_ir_data(struct wiimote_t *wm)
+void interpret_ir_data(struct wiimote_t *wm)
 {
     struct ir_dot_t *dot = wm->ir.dot;
     int i;

@@ -19,6 +19,17 @@
 #include <sys/time.h>   /* for struct timeval */
 #include <time.h>       /* for clock_gettime */
 
+static vu32* const _ipcReg = (u32*)0xCD000000;
+static __inline__ u32 ACR_ReadReg(u32 reg)
+{
+	return _ipcReg[reg>>2];
+}
+
+static __inline__ void ACR_WriteReg(u32 reg,u32 val)
+{
+	_ipcReg[reg>>2] = val;
+}
+
 int __wiiuse_os_connect_single(struct wiimote_t *wm)
 {
 	if(!wm)
@@ -38,7 +49,16 @@ int __wiiuse_os_connect_single(struct wiimote_t *wm)
 static s32 __bte_receive(void *arg, void *buffer, u16 len)
 {
 	struct wiimote_t *wm = (struct wiimote_t*)arg;
-	return wiiuse_os_read(wm, buffer, len);
+
+	if(!wm || !buffer || len==0) return 0;
+
+	//printf("__wiiuse_receive[%02x]\n",*(char*)buffer);
+	wm->event = WIIUSE_NONE;
+
+	memcpy(wm->event_buf,buffer,len);
+	memset(&(wm->event_buf[len]),0,(MAX_PAYLOAD - len));
+	
+	return 0;
 }
 
 static s32 __bte_disconnected(void *arg,struct bte_pcb *pcb,u8 err)
@@ -54,21 +74,52 @@ static s32 __bte_connected(void *arg, struct bte_pcb *pcb, u8 err)
 	return __wiiuse_os_connect_single(wm);
 }
 
-static void __set_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
+static int __set_platform_fields(struct wiimote_t *wm, struct bte_pcb *sock, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr))
 {
-	wm->sock = NULL;
-	wm->bdaddr = *BD_ADDR_ANY;
-	wm->event_cb = event_cb;
-}
-void wiiuse_init_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
-{
-	__set_platform_fields(wm, event_cb);
+	if(!wm || !bdaddr) 
+		return 0;
+
+	wm->bdaddr = *bdaddr;
+	wm->sock = sock;
+	wm->assign_cb = assign_cb;
+	if(wm->sock==NULL) 
+		return 0;
+
 	bte_arg(wm->sock, wm);
 	bte_received(wm->sock, __bte_receive);
 	bte_disconnected(wm->sock, __bte_disconnected);
-	bte_registerdeviceasync(wm->sock, &wm->bdaddr, __bte_connected);
+
+	return bte_registerdeviceasync(wm->sock, bdaddr, __bte_connected) == 0;
 }
-void wiiuse_cleanup_platform_fields(struct wiimote_t *wm) { __set_platform_fields(wm, NULL); }
+
+
+void wiiuse_sensorbar_enable(int enable)
+{
+	u32 val;
+	u32 level;
+
+	level = IRQ_Disable();
+	val = (ACR_ReadReg(0xc0)&~0x100);
+	if(enable) val |= 0x100;
+	ACR_WriteReg(0xc0,val);
+	IRQ_Restore(level);
+}
+
+int wiiuse_register(struct wiimote_t *wm, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr))
+{
+	return __set_platform_fields(wm, bte_new(), bdaddr, assign_cb);
+}
+
+void wiiuse_init_platform_fields(struct wiimote_t *wm, wii_event_cb event_cb)
+{
+	wm->event_cb = event_cb;
+	__set_platform_fields(wm, NULL, BD_ADDR_ANY, NULL);
+}
+void wiiuse_cleanup_platform_fields(struct wiimote_t *wm) 
+{
+	wm->event_cb = NULL;
+	__set_platform_fields(wm, NULL, BD_ADDR_ANY, NULL);
+}
 int wiiuse_os_find(struct wiimote_t **wm, int max_wiimotes, int timeout){ return 0; }
 
 int wiiuse_os_connect(struct wiimote_t **wm, int wiimotes)
@@ -114,24 +165,44 @@ void wiiuse_os_disconnect(struct wiimote_t *wm)
 	return;
 }
 
-int wiiuse_os_poll(struct wiimote_t **wm, int wiimotes) { return wm != NULL; }
+int wiiuse_os_poll(struct wiimote_t **wm, int wiimotes) 
+{ 
+	if (!wm)
+		return 0;
+	
+	byte read_buffer[MAX_PAYLOAD];
+	int evnt = 0;
+	for(int i = 0; i < wiimotes; i++)
+	{
+		struct wiimote_t* wiimote = wm[i];
+		if(wiiuse_os_read(wiimote, read_buffer, sizeof(read_buffer)))
+		{
+			propagate_event(wiimote, read_buffer[0], read_buffer + 1);
+            evnt += (wiimote->event != WIIUSE_NONE);
+		}
+		else
+		{
+			/* send out any waiting writes */
+            wiiuse_send_next_pending_write_request(wiimote);
+            idle_cycle(wiimote);
+		}
+		
+		if(wiimote->event!=WIIUSE_NONE && wiimote->event_cb) {
+			wiimote->event_cb(wiimote, wiimote->event);
+		}
+	}
+
+	return evnt; 
+}
 
 int wiiuse_os_read(struct wiimote_t *wm, byte *buf, int len)
 {
 	if (!wm || !buf || len==0 || !WIIMOTE_IS_CONNECTED(wm))
 		return 0;
-
-	//printf("__wiiuse_receive[%02x]\n",*(char*)buf);
-	wm->event = WIIUSE_NONE;
-
-	memcpy(wm->event_buf, buf, len);
-	memset(&(wm->event_buf[len]), 0, (MAX_PAYLOAD - len));
-	propagate_event(wm, wm->event, buf);
-
-	if(wm->event!=WIIUSE_NONE) {
-		if(wm->event_cb) wm->event_cb(wm, wm->event);
-	}
-
+	
+	memset(buf, 0, len);
+	memcpy(buf, wm->event_buf, len);
+	
 	return len;
 }
 int wiiuse_os_write(struct wiimote_t *wm, byte report_type, byte *buf, int len)

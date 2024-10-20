@@ -738,14 +738,13 @@ typedef struct wiimote_state_t
     uint16_t exp_wb_rbl;
 
     /* ir_t */
-    int ir_ax;
-    int ir_ay;
-    float ir_distance;
+	struct ir_t ir;
 
     struct orient_t orient;
     uint16_t btns;
 
     struct vec3b_t accel;
+	struct expansion_t exp;
 } wiimote_state_t;
 
 /**
@@ -824,6 +823,7 @@ typedef struct wiimote_t
     struct bte_pcb *sock;      /**< output socket							*/
     wii_event_cb event_cb;     /**< event callback							*/
 	unsigned char event_buf[32];		/**< event buffer							*/
+	struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr);
 #endif
 
     int state;           /**< various state flags					*/
@@ -980,6 +980,8 @@ WIIUSE_EXPORT extern void wiiuse_set_output(enum wiiuse_loglevel loglevel, FILE 
 WIIUSE_EXPORT extern struct wiimote_t **wiiuse_init(int wiimotes);
 #else
 WIIUSE_EXPORT extern struct wiimote_t** wiiuse_init(int wiimotes, wii_event_cb event_cb);
+WIIUSE_EXPORT extern int wiiuse_register(struct wiimote_t *wm, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr));
+WIIUSE_EXPORT extern void wiiuse_sensorbar_enable(int enable);
 #endif
 
 WIIUSE_EXPORT extern void wiiuse_disconnected(struct wiimote_t *wm);

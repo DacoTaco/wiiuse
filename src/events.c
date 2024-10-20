@@ -926,9 +926,7 @@ static void save_state(struct wiimote_t *wm)
     /* ir */
     if (WIIUSE_USING_IR(wm))
     {
-        wm->lstate.ir_ax       = wm->ir.ax;
-        wm->lstate.ir_ay       = wm->ir.ay;
-        wm->lstate.ir_distance = wm->ir.distance;
+        wm->lstate.ir       = wm->ir;
     }
 
     /* expansion */
@@ -1056,9 +1054,9 @@ static int state_changed(struct wiimote_t *wm)
     /* ir */
     if (WIIUSE_USING_IR(wm))
     {
-        STATE_CHANGED(wm->lstate.ir_ax, wm->ir.ax);
-        STATE_CHANGED(wm->lstate.ir_ay, wm->ir.ay);
-        STATE_CHANGED(wm->lstate.ir_distance, wm->ir.distance);
+        STATE_CHANGED(wm->lstate.ir.ax, wm->ir.ax);
+        STATE_CHANGED(wm->lstate.ir.ay, wm->ir.ay);
+        STATE_CHANGED(wm->lstate.ir.distance, wm->ir.distance);
     }
 
     /* accelerometer */

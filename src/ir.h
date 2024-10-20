@@ -49,6 +49,7 @@ void wiiuse_set_ir_mode(struct wiimote_t *wm);
 void calculate_basic_ir(struct wiimote_t *wm, byte *data);
 void calculate_extended_ir(struct wiimote_t *wm, byte *data);
 float calc_yaw(struct ir_t *ir);
+void interpret_ir_data(struct wiimote_t *wm);
 /** @} */
 
 #ifdef __cplusplus
