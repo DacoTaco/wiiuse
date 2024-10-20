@@ -26,7 +26,9 @@ set(SOURCES
 	os.h
 	util.c
 	wiiuse_internal.h
-	wiiboard.h)
+	wiiboard.h
+	speaker.h
+	speaker.c)
 set(API
 	wiiuse.h)
 
